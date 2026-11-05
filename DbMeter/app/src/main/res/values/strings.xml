@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">dB Meter</string>
+    <string name="unit">dB (estimated)</string>
+
+    <string name="start">Start measuring</string>
+    <string name="stop">Stop</string>
+
+    <string name="status_idle">NOT MEASURING</string>
+    <string name="status_silent">NOTHING PLAYING</string>
+    <string name="status_safe">SAFE</string>
+    <string name="status_caution">CAUTION</string>
+    <string name="status_danger">DANGER</string>
+
+    <string name="advice_idle">Tap start, then play something.</string>
+    <string name="advice_silent">Play music or a video to see its level.</string>
+    <string name="advice_safe">Fine for all-day listening.</string>
+    <string name="advice_caution">Take breaks and avoid long sessions.</string>
+    <string name="advice_danger">Turn it down! Safe for only about %1$s a day.</string>
+
+    <string name="duration_under_minute">under a minute</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_hours">%1$d h %2$d min</string>
+
+    <string name="peak">Peak this session: %1$d dB (tap to reset)</string>
+    <string name="peak_none">Peak this session: --</string>
+
+    <string name="legend_safe">Green: under 70 dB – safe</string>
+    <string name="legend_caution">Orange: 70–85 dB – caution</string>
+    <string name="legend_danger">Red: 85 dB and above – dangerous with long listening</string>
+    <string name="level_bar_description">Loudness scale from green to red</string>
+
+    <string name="calibration_title">Calibration</string>
+    <string name="calibration_value">Adjustment: %1$d dB</string>
+    <string name="calibration_help">Phones can\'t know how loud your speaker or headphones really are, so the number is an estimate (a full-scale signal at full volume is assumed to be 100 dB). If you have a sound-level meter, nudge this until both agree.</string>
+    <string name="disclaimer">Measures what your phone plays (music, videos, games), not the microphone. Android requires the microphone permission to capture audio output, but no microphone audio is recorded or saved, and nothing leaves your phone. Some apps (e.g. DRM-protected video) block capture and will show as silent, and phone calls can\'t be measured. This is a guide, not a medical device.</string>
+
+    <string name="channel_name">Sound level monitoring</string>
+    <string name="notif_starting">Starting…</string>
+    <string name="notif_silent">Nothing playing</string>
+    <string name="notif_safe">Safe – %1$d dB</string>
+    <string name="notif_caution">Caution – %1$d dB</string>
+    <string name="notif_danger">Too loud! %1$d dB – turn it down</string>
+
+    <string name="error_no_permission">Microphone permission is needed so Android lets this app capture your phone\'s audio output. No microphone audio is recorded.</string>
+    <string name="error_no_projection">Screen-capture permission was not granted. Android uses it to allow audio capture; no screen is recorded.</string>
+    <string name="error_recorder">Couldn\'t start audio capture: %1$s</string>
+    <string name="error_read">Audio capture stopped unexpectedly.</string>
+</resources>
