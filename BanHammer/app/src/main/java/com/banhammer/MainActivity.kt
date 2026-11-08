@@ -29,10 +29,13 @@ import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
 
-    private data class AppEntry(val label: String, val pkg: String, val icon: Drawable)
+    private data class AppEntry(val label: String, val pkg: String, val icon: Drawable, val installed: Boolean)
 
     private val blocked = mutableSetOf<String>()
     private var apps: List<AppEntry> = emptyList()
+    private var shown: List<AppEntry> = emptyList()
+    private var query = ""
+    private var loadGen = 0
 
     private lateinit var statusText: TextView
     private lateinit var statusButton: Button
@@ -59,27 +62,50 @@ class MainActivity : Activity() {
             clipToPadding = false
         }
         setContentView(list)
-
-        thread {
-            val loaded = loadApps()
-            runOnUiThread { apps = loaded; adapter.notifyDataSetChanged() }
-        }
     }
 
     override fun onResume() {
         super.onResume()
         refresh()
+        reloadApps() // picks up apps installed or removed since last time
+    }
+
+    private fun reloadApps() {
+        val gen = ++loadGen
+        thread {
+            val loaded = loadApps()
+            runOnUiThread {
+                if (gen != loadGen) return@runOnUiThread
+                apps = loaded
+                applyFilter()
+            }
+        }
+    }
+
+    private fun applyFilter() {
+        val q = query.trim().lowercase()
+        shown = if (q.isEmpty()) apps else apps.filter {
+            it.label.lowercase().contains(q) || it.pkg.lowercase().contains(q)
+        }
+        adapter.notifyDataSetChanged()
     }
 
     private fun loadApps(): List<AppEntry> {
         val pm = packageManager
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return pm.queryIntentActivities(launcher, 0)
+        val banned = Prefs.blockedApps(this)
+        val installed = pm.queryIntentActivities(launcher, 0)
             .map { it.activityInfo.packageName to it }
             .distinctBy { it.first }
             .filter { it.first != packageName }
-            .map { (pkg, ri) -> AppEntry(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm)) }
-            .sortedWith(compareBy({ it.pkg !in blocked }, { it.label.lowercase() }))
+            .map { (pkg, ri) -> AppEntry(ri.loadLabel(pm).toString(), pkg, ri.loadIcon(pm), true) }
+        // Banned apps that aren't on the phone right now stay listed: the ban is on the package
+        // name, so it applies again the moment they're reinstalled.
+        val missing = banned - installed.map { it.pkg }.toSet()
+        val placeholder = pm.getDefaultActivityIcon()
+        val gone = missing.map { AppEntry(it, it, placeholder, false) }
+        return (installed + gone)
+            .sortedWith(compareBy({ it.pkg !in banned }, { it.label.lowercase() }))
     }
 
     // ---------------------------------------------------------------- header
@@ -154,6 +180,40 @@ class MainActivity : Activity() {
         })
 
         box.addView(text("Banned apps", 17f, bold = true).apply { setPadding(0, dp(20), 0, dp(4)) })
+        box.addView(text("Tick any app to ban it. A banned app stays banned even if it's uninstalled and reinstalled.", 13f, dim))
+        box.addView(EditText(this).apply {
+            hint = "Search apps"
+            setHintTextColor(dim)
+            setTextColor(fg)
+            isSingleLine = true
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) { query = s?.toString().orEmpty(); applyFilter() }
+                override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            })
+        })
+        // For apps that aren't in the list: no launcher icon, or not installed yet.
+        val addRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val pkgEdit = EditText(this).apply {
+            hint = "Package name, e.g. com.reddit.frontpage"
+            setHintTextColor(dim)
+            setTextColor(fg)
+            textSize = 14f
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        addRow.addView(pkgEdit, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addRow.addView(Button(this).apply {
+            text = "Ban"
+            setOnClickListener {
+                val pkg = pkgEdit.text.toString().trim()
+                if (!PKG_REGEX.matches(pkg)) { toast("That doesn't look like a package name"); return@setOnClickListener }
+                if (Prefs.setBlockedApps(this@MainActivity, blocked + pkg)) {
+                    blocked.add(pkg); pkgEdit.setText(""); toast("Banned $pkg"); reloadApps()
+                }
+            }
+        })
+        box.addView(addRow)
         return box
     }
 
@@ -209,8 +269,8 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- list
 
     private inner class AppAdapter : BaseAdapter() {
-        override fun getCount() = apps.size
-        override fun getItem(position: Int) = apps[position]
+        override fun getCount() = shown.size
+        override fun getItem(position: Int) = shown[position]
         override fun getItemId(position: Int) = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -226,10 +286,10 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(14) })
                 addView(CheckBox(context).apply { id = ID_CHECK; isClickable = false; isFocusable = false })
             }
-            val app = apps[position]
+            val app = shown[position]
             row.findViewById<ImageView>(ID_ICON).setImageDrawable(app.icon)
             row.findViewById<TextView>(ID_LABEL).text = app.label
-            row.findViewById<TextView>(ID_PKG).text = app.pkg
+            row.findViewById<TextView>(ID_PKG).text = if (app.installed) app.pkg else "not installed – still banned"
             row.findViewById<CheckBox>(ID_CHECK).isChecked = app.pkg in blocked
             row.setOnClickListener { toggle(app.pkg) }
             return row
@@ -248,6 +308,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        val PKG_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
         const val ID_ICON = 0x7f0a0001
         const val ID_LABEL = 0x7f0a0002
         const val ID_PKG = 0x7f0a0003
