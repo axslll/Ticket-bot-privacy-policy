@@ -24,12 +24,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".BlockedActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:launchMode="singleTask"
-            android:taskAffinity="com.banhammer.blocked" />
 
         <service
             android:name=".BlockerService"

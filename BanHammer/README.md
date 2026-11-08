@@ -6,7 +6,7 @@ When you open something banned, it instantly sends you back to the home screen a
 
 ## Install
 
-1. Get `app-debug.apk` (build it below, or download it from the **Build BanHammer APK**
+1. Get `app-release.apk` (build it below, or download it from the **Build BanHammer APK**
    GitHub Actions run) and open it on your phone. Allow "install unknown apps" if asked.
 2. Open **BanHammer** and tap **Turn on in Accessibility settings**. Find **BanHammer** under
    *Installed apps / Downloaded apps* and switch it on.
@@ -38,6 +38,6 @@ switch the ban off or remove anything from it. You can still add more.
 Needs JDK 17+ and the Android SDK (platform 34, build-tools 34).
 
 ```
-./gradlew assembleDebug
-# -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease
+# -> app/build/outputs/apk/release/app-release.apk
 ```

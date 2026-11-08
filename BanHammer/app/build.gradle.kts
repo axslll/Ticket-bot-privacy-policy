@@ -12,13 +12,18 @@ android {
         applicationId = "com.banhammer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 4
+        versionName = "3.1"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Optimised build (much snappier UI than debug). Signed with the debug key so it can
+            // be installed directly and updated over earlier builds.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

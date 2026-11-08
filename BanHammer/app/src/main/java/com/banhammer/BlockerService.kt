@@ -3,44 +3,59 @@ package com.banhammer
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Sends you home when a banned app (or a banned website in a supported browser) is on screen.
  *
- * Two layers so one missed event can't let a banned app through:
- *  1. reacts to accessibility events, and
- *  2. checks the foreground window once a second while the screen is on.
+ * Speed rules: the event handler (main thread) only does set lookups and a Home press. Anything
+ * that reads another app's screen runs on a background thread, never once per content event.
+ *
+ *  1. Window-change events catch the moment a banned app opens.
+ *  2. A background poll every [POLL_MS] while the screen is on catches anything that slipped
+ *     through, and presses Home again if the app is still there.
  */
 class BlockerService : AccessibilityService() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var active = true
-    private var apps: Set<String> = emptySet()
-    private var sites: Set<String> = emptySet()
+    private val main = Handler(Looper.getMainLooper())
+    private var worker: HandlerThread? = null
+    private var bg: Handler? = null
+
+    @Volatile private var active = true
+    @Volatile private var apps: Set<String> = emptySet()
+    @Volatile private var sites: Set<String> = emptySet()
+    @Volatile private var lastWebAt = 0L
     private var lastBlockAt = 0L
-    private var lastWebCheckAt = 0L
+    private var lastToastAt = 0L
+    private val webBusy = AtomicBoolean(false)
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> reload() }
 
     private val poll = object : Runnable {
         override fun run() {
             try { checkForeground() } catch (_: Exception) { }
-            handler.postDelayed(this, POLL_MS)
+            bg?.postDelayed(this, POLL_MS)
         }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        shutdown()
         connected = true
         reload()
         Prefs.sp(this).registerOnSharedPreferenceChangeListener(prefListener)
-        handler.removeCallbacks(poll)
-        handler.post(poll)
+        val t = HandlerThread("banhammer-poll").also { it.start() }
+        worker = t
+        bg = Handler(t.looper).also { it.post(poll) }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -55,7 +70,10 @@ class BlockerService : AccessibilityService() {
 
     private fun shutdown() {
         connected = false
-        handler.removeCallbacks(poll)
+        bg?.removeCallbacksAndMessages(null)
+        worker?.quitSafely()
+        worker = null
+        bg = null
         Prefs.sp(this).unregisterOnSharedPreferenceChangeListener(prefListener)
     }
 
@@ -65,45 +83,68 @@ class BlockerService : AccessibilityService() {
         sites = Prefs.blockedSites(this)
     }
 
-    // ------------------------------------------------------------ detection
+    // ------------------------------------------------------------ events (main thread, cheap)
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
-        seen(pkg)
-        if (!active) return
-        // A launch/window change names the app directly. Content events can come from
-        // background windows, so for those we confirm the window is really in front.
-        val isWindowChange = event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-        evaluate(pkg, trusted = isWindowChange)
-    }
-
-    private fun checkForeground() {
-        active = Prefs.isEnabled(this) // lets a lock expiry / toggle take effect without an event
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isInteractive) return
-        val pkg = rootInActiveWindow?.packageName?.toString() ?: return
-        seen(pkg)
-        if (active) evaluate(pkg, trusted = true)
-    }
-
-    private fun evaluate(pkg: String, trusted: Boolean) {
         if (pkg == packageName) return
 
-        if (pkg in apps) {
-            if (trusted || rootInActiveWindow?.packageName?.toString() == pkg) block(appLabel(pkg))
-            return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                seen(pkg)
+                if (!active) return
+                if (pkg in apps) block(pkg) else if (pkg in BROWSER_URL_BARS) scheduleWebCheck(pkg)
+            }
+            // Fires constantly (every scroll). Only browsers care, for URL changes, and only
+            // via a throttled background check. Never touch the banned app's tree here.
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                if (active && pkg in BROWSER_URL_BARS) scheduleWebCheck(pkg)
+            }
         }
+    }
 
-        val urlBarId = BROWSER_URL_BARS[pkg]
-        if (urlBarId != null && sites.isNotEmpty()) {
-            val now = SystemClock.elapsedRealtime()
-            if (now - lastWebCheckAt < 250) return
-            lastWebCheckAt = now
-            val root = rootInActiveWindow ?: return
-            val bars = root.findAccessibilityNodeInfosByViewId(urlBarId) ?: return
-            if (bars.any { Prefs.hostMatches(it.text?.toString().orEmpty(), sites) }) block("That website")
+    private fun scheduleWebCheck(pkg: String) {
+        if (sites.isEmpty()) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastWebAt < 300) return
+        lastWebAt = now
+        if (!webBusy.compareAndSet(false, true)) return
+        val h = bg
+        if (h == null) { webBusy.set(false); return }
+        h.post {
+            try { checkBrowser(pkg, null) } catch (_: Exception) { } finally { webBusy.set(false) }
         }
+    }
+
+    // ------------------------------------------------------------ background work
+
+    private fun checkForeground() {
+        active = Prefs.isEnabled(this) // picks up a lock expiring / toggling without an event
+        if (!active) return
+        if (!(getSystemService(POWER_SERVICE) as PowerManager).isInteractive) return
+        val root = lightRoot() ?: return
+        val pkg = root.packageName?.toString() ?: return
+        if (pkg == packageName) return
+        seen(pkg)
+        if (pkg in apps) block(pkg) else if (pkg in BROWSER_URL_BARS) checkBrowser(pkg, root)
+    }
+
+    private fun checkBrowser(pkg: String, knownRoot: AccessibilityNodeInfo?) {
+        val barId = BROWSER_URL_BARS[pkg] ?: return
+        if (sites.isEmpty()) return
+        val root = knownRoot ?: lightRoot() ?: return
+        if (root.packageName?.toString() != pkg) return // browser isn't actually in front
+        val bars = root.findAccessibilityNodeInfosByViewId(barId) ?: return
+        if (bars.any { Prefs.hostMatches(it.text?.toString().orEmpty(), sites) }) block(null)
+    }
+
+    /** The foreground window's root without pre-fetching its whole subtree (fast on heavy apps). */
+    private fun lightRoot(): AccessibilityNodeInfo? {
+        if (Build.VERSION.SDK_INT >= 33) {
+            try { return getRootInActiveWindow(0) } catch (_: Exception) { }
+        }
+        return rootInActiveWindow
     }
 
     private fun seen(pkg: String) {
@@ -112,18 +153,25 @@ class BlockerService : AccessibilityService() {
         lastSeenAt = System.currentTimeMillis()
     }
 
-    private fun block(what: String) {
+    /** [pkg] is the banned app, or null for a banned website. */
+    @Synchronized
+    private fun block(pkg: String?) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastBlockAt < 800) return
+        if (now - lastBlockAt < 300) return
         lastBlockAt = now
+
+        performGlobalAction(GLOBAL_ACTION_HOME) // first, before anything slow
+
+        val what = if (pkg == null) "That website" else appLabel(pkg)
         lastBlockedWhat = what
         lastBlockedAt = System.currentTimeMillis()
-        performGlobalAction(GLOBAL_ACTION_HOME)
-        startActivity(
-            Intent(this, BlockedActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                .putExtra(BlockedActivity.EXTRA_WHAT, what)
-        )
+
+        if (now - lastToastAt > 2500) {
+            lastToastAt = now
+            val left = Prefs.describeRemaining(this)
+            val msg = "$what is banned" + if (left.isNotEmpty()) " ($left left on your lock)" else ""
+            main.post { Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show() }
+        }
     }
 
     private fun appLabel(pkg: String): String = try {
@@ -135,7 +183,7 @@ class BlockerService : AccessibilityService() {
     override fun onInterrupt() {}
 
     companion object {
-        private const val POLL_MS = 1000L
+        private const val POLL_MS = 400L
 
         // Live status the app screen shows (same process).
         @Volatile var connected = false
