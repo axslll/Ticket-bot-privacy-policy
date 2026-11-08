@@ -29,7 +29,9 @@ switch the ban off or remove anything from it. You can still add more.
   the lock stops you cheating in the app, not by force. Add friction yourself: if you want
   more, set up a Digital Wellbeing / parental PIN on Settings.
 - The lock uses the phone's clock, so changing the date could shorten it.
-- The blocker reacts to accessibility events and also checks the foreground app once a second.
+- Battery and CPU: there is no polling. Android only wakes BanHammer for your banned apps (and browsers, if
+  you banned websites); every other app is filtered out by the system, and while paused it listens to nothing.
+  Blocking a banned app is a set lookup plus a Home press.
 - Website blocking reads the address bar of Chrome, Brave, Edge, Firefox, Samsung Internet,
   Opera and DuckDuckGo. Other browsers, in-app browsers and the X website in a PWA aren't covered.
   Browser updates that rename the address-bar view can break this for that browser.

@@ -348,11 +348,10 @@ private fun HomeScreen(s: BanState) {
             }
 
             // ---- diagnostics
-            val seenAgo = if (s.lastSeenAt == 0L) null else ((s.now - s.lastSeenAt) / 1000).coerceAtLeast(0)
             Text(
                 buildString {
                     append(if (s.serviceRunning) "Blocker running" else "Blocker not running")
-                    append(if (seenAgo == null) " · no app seen yet" else " · last app seen: ${s.lastSeenPkg} (${seenAgo}s ago)")
+                    if (s.serviceRunning && s.enabled) append(" · watching ${s.blocked.size} apps")
                     if (s.lastBlockedAt != 0L) append("\nLast blocked: ${s.lastBlockedWhat} (${(s.now - s.lastBlockedAt) / 1000}s ago)")
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

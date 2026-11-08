@@ -34,8 +34,6 @@ class BanState(private val ctx: Context) {
 
     var serviceOn by mutableStateOf(false); private set        // switched on in Android settings
     var serviceRunning by mutableStateOf(false); private set   // actually connected
-    var lastSeenPkg by mutableStateOf(""); private set
-    var lastSeenAt by mutableLongStateOf(0L); private set
     var lastBlockedWhat by mutableStateOf(""); private set
     var lastBlockedAt by mutableLongStateOf(0L); private set
 
@@ -77,8 +75,6 @@ class BanState(private val ctx: Context) {
                 if (mode == AppOpsManager.MODE_ALLOWED || mode == AppOpsManager.MODE_DEFAULT) Check.Done else Check.Todo
             } catch (_: Exception) { Check.Unknown }
         }
-        lastSeenPkg = BlockerService.lastSeenPkg
-        lastSeenAt = BlockerService.lastSeenAt
         lastBlockedWhat = BlockerService.lastBlockedWhat
         lastBlockedAt = BlockerService.lastBlockedAt
     }
