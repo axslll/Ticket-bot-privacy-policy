@@ -12,7 +12,9 @@ When you open something banned, it instantly sends you back to the home screen a
    *Installed apps / Downloaded apps* and switch it on.
    (If Android says the setting is restricted: *Settings → Apps → BanHammer → ⋮ → Allow restricted settings*.)
 3. Twitter/X (`com.twitter.android`) and `x.com` / `twitter.com` are banned by default.
-   Tick any other apps in the list, or add more websites.
+   Use the **Apps** tab to tick any other app (or ban one by package name), and the **Sites** tab
+   to add websites. The **Home** tab shows whether the blocker is actually running.
+   After updating the app, switch BanHammer off and on again in Accessibility settings.
 
 ## The lock
 
@@ -25,6 +27,7 @@ switch the ban off or remove anything from it. You can still add more.
   the lock stops you cheating in the app, not by force. Add friction yourself: if you want
   more, set up a Digital Wellbeing / parental PIN on Settings.
 - The lock uses the phone's clock, so changing the date could shorten it.
+- The blocker reacts to accessibility events and also checks the foreground app once a second.
 - Website blocking reads the address bar of Chrome, Brave, Edge, Firefox, Samsung Internet,
   Opera and DuckDuckGo. Other browsers, in-app browsers and the X website in a PWA aren't covered.
   Browser updates that rename the address-bar view can break this for that browser.

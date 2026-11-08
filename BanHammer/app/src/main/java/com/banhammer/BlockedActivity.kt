@@ -1,71 +1,78 @@
 package com.banhammer
 
-import android.app.Activity
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Gravity
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.banhammer.ui.BanHammerTheme
+import com.banhammer.ui.Pal
 
 /** Full-screen "nope" shown right after a banned app/site is sent away. Closes itself. */
-class BlockedActivity : Activity() {
+class BlockedActivity : ComponentActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private lateinit var title: TextView
-    private lateinit var sub: TextView
+    private var what by mutableStateOf("That")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#FF0F1115"))
-            setPadding(pad, pad, pad, pad)
+        read(intent)
+        setContent {
+            BanHammerTheme {
+                val left = Prefs.describeRemaining(this)
+                Column(
+                    Modifier.fillMaxSize().background(Pal.Bg).padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text("🚫", fontSize = 84.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Text("$what is banned", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Pal.Text, textAlign = TextAlign.Center)
+                    Text(
+                        if (left.isNotEmpty()) "You locked this ban. $left left." else "You banned this. Go do something else.",
+                        fontSize = 16.sp, color = Pal.Dim, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 32.dp),
+                    )
+                    Button(
+                        onClick = { finish() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Pal.Red, contentColor = Color.White),
+                    ) { Text("OK, go home", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) }
+                }
+            }
         }
-        root.addView(TextView(this).apply {
-            text = "🚫"
-            textSize = 72f
-            gravity = Gravity.CENTER
-        })
-        title = TextView(this).apply {
-            textSize = 26f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-        }
-        sub = TextView(this).apply {
-            textSize = 16f
-            setTextColor(Color.parseColor("#FF9AA0AA"))
-            gravity = Gravity.CENTER
-            setPadding(0, pad / 2, 0, pad)
-        }
-        root.addView(title)
-        root.addView(sub)
-        root.addView(Button(this).apply {
-            text = "OK, go home"
-            setOnClickListener { finish() }
-        })
-        setContentView(root)
-        render(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        render(intent)
+        read(intent)
     }
 
-    private fun render(intent: Intent) {
-        val what = intent.getStringExtra(EXTRA_WHAT) ?: "That"
-        title.text = "$what is banned"
-        val left = Prefs.describeRemaining(this)
-        sub.text = if (left.isNotEmpty()) "You locked this ban. $left left." else "You banned this. Go do something else."
+    private fun read(intent: Intent) {
+        what = intent.getStringExtra(EXTRA_WHAT) ?: "That"
         handler.removeCallbacksAndMessages(null)
         handler.postDelayed({ finish() }, 3500)
     }
