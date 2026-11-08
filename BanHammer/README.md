@@ -8,9 +8,11 @@ When you open something banned, it instantly sends you back to the home screen a
 
 1. Get `app-release.apk` (build it below, or download it from the **Build BanHammer APK**
    GitHub Actions run) and open it on your phone. Allow "install unknown apps" if asked.
-2. Open **BanHammer** and tap **Turn on in Accessibility settings**. Find **BanHammer** under
-   *Installed apps / Downloaded apps* and switch it on.
-   (If Android says the setting is restricted: *Settings → Apps → BanHammer → ⋮ → Allow restricted settings*.)
+2. Open **BanHammer**. The **Home** tab has a setup checklist. Each step has a button that opens
+   the exact Android page for it, and the checks update the moment you come back:
+   - **Turn on the blocker**: Accessibility → BanHammer → On.
+   - **Allow restricted settings** (Android 13+, only if step 1 is greyed out): App info → ⋮ → Allow restricted settings.
+   - **Run in the background**: lets the phone's battery saver leave the blocker alone.
 3. Twitter/X (`com.twitter.android`) and `x.com` / `twitter.com` are banned by default.
    Use the **Apps** tab to tick any other app (or ban one by package name), and the **Sites** tab
    to add websites. The **Home** tab shows whether the blocker is actually running.

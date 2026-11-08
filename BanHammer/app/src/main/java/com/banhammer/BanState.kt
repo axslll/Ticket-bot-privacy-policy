@@ -1,7 +1,11 @@
 package com.banhammer
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.AppOpsManager
 import android.content.Context
+import android.os.Build
+import android.os.PowerManager
+import android.os.Process
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityManager
@@ -13,6 +17,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import kotlin.concurrent.thread
+
+enum class Check { Done, Todo, Unknown }
 
 class AppItem(val label: String, val pkg: String, val icon: ImageBitmap?, val installed: Boolean)
 
@@ -33,6 +39,14 @@ class BanState(private val ctx: Context) {
     var lastBlockedWhat by mutableStateOf(""); private set
     var lastBlockedAt by mutableLongStateOf(0L); private set
 
+    /** Setup checks, refreshed on every [tick]. */
+    var batteryOk by mutableStateOf(true); private set
+    var restricted by mutableStateOf(Check.Done); private set   // "Allow restricted settings" (Android 13+)
+    val restrictedApplies: Boolean get() = Build.VERSION.SDK_INT >= 33
+
+    /** Everything the blocker needs is in place. (Unknown restricted-settings state doesn't count against it.) */
+    val setupDone: Boolean get() = serviceRunning && batteryOk && restricted != Check.Todo
+
     val locked: Boolean get() = now < lockUntil
 
     private val main = Handler(Looper.getMainLooper())
@@ -51,6 +65,18 @@ class BanState(private val ctx: Context) {
             it.resolveInfo.serviceInfo.let { s -> s.packageName == ctx.packageName && s.name == BlockerService::class.java.name }
         }
         serviceRunning = BlockerService.connected
+
+        batteryOk = try {
+            (ctx.getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(ctx.packageName)
+        } catch (_: Exception) { true }
+        restricted = when {
+            !restrictedApplies || serviceOn -> Check.Done // can't be restricted if it's already on
+            else -> try {
+                val ops = ctx.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                val mode = ops.unsafeCheckOpNoThrow("android:access_restricted_settings", Process.myUid(), ctx.packageName)
+                if (mode == AppOpsManager.MODE_ALLOWED || mode == AppOpsManager.MODE_DEFAULT) Check.Done else Check.Todo
+            } catch (_: Exception) { Check.Unknown }
+        }
         lastSeenPkg = BlockerService.lastSeenPkg
         lastSeenAt = BlockerService.lastSeenAt
         lastBlockedWhat = BlockerService.lastBlockedWhat

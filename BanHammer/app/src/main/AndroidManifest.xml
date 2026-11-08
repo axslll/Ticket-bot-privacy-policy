@@ -9,6 +9,9 @@
         </intent>
     </queries>
 
+    <!-- Lets the app show the one-tap "always allow in background" dialog for itself. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
