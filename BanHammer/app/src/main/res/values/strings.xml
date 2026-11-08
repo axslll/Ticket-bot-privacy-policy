@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">BanHammer</string>
+    <string name="service_description">Detects when an app or website you banned is opened and sends you back to the home screen. It only checks which app is on screen and the address bar of supported browsers. Nothing is stored or sent anywhere.</string>
+</resources>

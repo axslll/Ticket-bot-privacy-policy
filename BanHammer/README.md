@@ -1,0 +1,40 @@
+# BanHammer
+
+An Android app that bans you from opening Twitter / X (or any other app or website you pick).
+When you open something banned, it instantly sends you back to the home screen and shows a
+"that's banned" screen.
+
+## Install
+
+1. Get `app-debug.apk` (build it below, or download it from the **Build BanHammer APK**
+   GitHub Actions run) and open it on your phone. Allow "install unknown apps" if asked.
+2. Open **BanHammer** and tap **Turn on in Accessibility settings**. Find **BanHammer** under
+   *Installed apps / Downloaded apps* and switch it on.
+   (If Android says the setting is restricted: *Settings → Apps → BanHammer → ⋮ → Allow restricted settings*.)
+3. Twitter/X (`com.twitter.android`) and `x.com` / `twitter.com` are banned by default.
+   Tick any other apps in the list, or add more websites.
+
+## The lock
+
+Self-control is hard, so you can **lock** the ban for 1, 7 or 30 days. While locked you can't
+switch the ban off or remove anything from it. You can still add more.
+
+## What it can and can't do
+
+- It only blocks. It can't stop you disabling the accessibility service or uninstalling it, so
+  the lock stops you cheating in the app, not by force. Add friction yourself: if you want
+  more, set up a Digital Wellbeing / parental PIN on Settings.
+- The lock uses the phone's clock, so changing the date could shorten it.
+- Website blocking reads the address bar of Chrome, Brave, Edge, Firefox, Samsung Internet,
+  Opera and DuckDuckGo. Other browsers, in-app browsers and the X website in a PWA aren't covered.
+  Browser updates that rename the address-bar view can break this for that browser.
+- No internet permission, no analytics. Settings stay on the device.
+
+## Build
+
+Needs JDK 17+ and the Android SDK (platform 34, build-tools 34).
+
+```
+./gradlew assembleDebug
+# -> app/build/outputs/apk/debug/app-debug.apk
+```
